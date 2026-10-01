@@ -8,13 +8,14 @@ const PDFJS_WORKER_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pd
 let pdfjsPromise=null;
 
 const DEFAULT_CONFIG={
-  appTitle:'PERPETUA TENEBRAE', subtitle:'ONLY DARKNESS IS PERPETUAL', brandLabel:'WHITE CROW ENTERTAINMENT', pitchLabel:'PITCH',
-  musicEnabled:true, musicVolume:.45, videoVolume:.85, uiSoundVolume:.7, overlayStrength:.52, presentationLock:false, logoScale:100, logoX:0, logoY:0,
+  appTitle:'PERPETUA TENEBRAE', subtitle:'ONLY DARKNESS IS PERPETUAL', brandLabel:'WHITE CROW ENTERTAINMENT',
+  musicEnabled:true, musicVolume:.45, videoVolume:.85, uiSoundVolume:.7, overlayStrength:.52, logoScale:100, logoX:0, logoY:0,
+  documentSlots:[
+    {id:'pitch',label:'PITCH',enabled:true}
+  ],
   videoSlots:[
     {id:'combat',label:'COMBAT',enabled:true},
-    {id:'exploration',label:'EXPLORATION',enabled:true},
-    {id:'trailer',label:'TRAILER',enabled:false},
-    {id:'cinematics',label:'CINEMATICS',enabled:false}
+    {id:'exploration',label:'EXPLORATION',enabled:true}
   ]
 };
 
@@ -30,13 +31,29 @@ function saveConfig(){localStorage.setItem(CONFIG_KEY,JSON.stringify(config))}
 function loadConfig(){
   try{
     const raw=JSON.parse(localStorage.getItem(CONFIG_KEY)||'null')||{};
-    const slots=DEFAULT_CONFIG.videoSlots.map(f=>({...f,...(raw.videoSlots||[]).find(s=>s.id===f.id)}));
-    return {...structuredClone(DEFAULT_CONFIG),...raw,videoSlots:slots};
+    let documentSlots;
+    if(Array.isArray(raw.documentSlots)&&raw.documentSlots.length){
+      documentSlots=raw.documentSlots.map((slot,i)=>({id:slot.id||`document-${i+1}`,label:slot.label||`DOCUMENT ${i+1}`,enabled:slot.enabled!==false,...slot}));
+    }else{
+      documentSlots=[{
+        id:'pitch', label:raw.pitchLabel||'PITCH', enabled:true,
+        document:raw.pitch, thumbnail:raw.pitchThumbnail
+      }];
+    }
+    let videoSlots;
+    if(Array.isArray(raw.videoSlots)&&raw.videoSlots.length){
+      videoSlots=raw.videoSlots.map((slot,i)=>({id:slot.id||`video-${i+1}`,label:slot.label||`VIDEO ${i+1}`,enabled:slot.enabled!==false,...slot}));
+    }else{
+      videoSlots=structuredClone(DEFAULT_CONFIG.videoSlots);
+    }
+    return {...structuredClone(DEFAULT_CONFIG),...raw,documentSlots,videoSlots};
   }catch{return structuredClone(DEFAULT_CONFIG)}
 }
 function fmt(bytes=0){if(!bytes)return '0 B'; if(bytes>=1073741824)return (bytes/1073741824).toFixed(2)+' GB'; if(bytes>=1048576)return Math.round(bytes/1048576)+' MB'; if(bytes>=1024)return Math.round(bytes/1024)+' KB'; return bytes+' B'}
 function ext(name){const m=name.match(/(\.[a-zA-Z0-9]{1,8})$/);return m?m[1].toLowerCase():''}
 function safeRole(s){return s.replace(/[^a-z0-9_-]+/gi,'-').toLowerCase()}
+function newSlotId(prefix){return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2,7)}`}
+
 function hasOPFS(){return !!(navigator.storage&&navigator.storage.getDirectory)}
 async function opfsDir(){const root=await navigator.storage.getDirectory(); return root.getDirectoryHandle(OPFS_DIR,{create:true})}
 function openDb(){return new Promise((resolve,reject)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=()=>{if(!r.result.objectStoreNames.contains(DB_STORE))r.result.createObjectStore(DB_STORE)};r.onsuccess=()=>resolve(r.result);r.onerror=()=>reject(r.error)})}
@@ -89,14 +106,21 @@ async function doInstall(){if(installPrompt){await installPrompt.prompt();await 
 
 async function renderMenu(){
   cleanup();await syncAudio();await applyCustomFont();
-  const bg=await resolveUrl(config.background);const logo=await resolveUrl(config.logo);const pitchThumb=await resolveUrl(config.pitchThumbnail);const thumbs={};for(const s of config.videoSlots)thumbs[s.id]=await resolveUrl(s.thumbnail);
-  const cards=[`<button class="media-card ${config.pitch?'':'disabled'}" data-kind="pitch" ${config.pitch?'':'disabled'}>${pitchThumb?`<img src="${pitchThumb}" alt="">`:`<div class="card-fallback"><span>▤</span></div>`}<div class="card-shade"></div><div class="card-label">${esc(config.pitchLabel)}</div>${config.pitch?'':'<div class="not-assigned">NOT ASSIGNED</div>'}</button>`]
-    .concat(config.videoSlots.filter(s=>s.enabled).map(s=>`<button class="media-card ${s.video?'':'disabled'}" data-slot="${s.id}" ${s.video?'':'disabled'}>${thumbs[s.id]?`<img src="${thumbs[s.id]}" alt="">`:`<div class="card-fallback"><span>▶</span></div>`}<div class="card-shade"></div><div class="card-label">${esc(s.label)}</div>${s.video?'':'<div class="not-assigned">NOT ASSIGNED</div>'}</button>`)).join('');
-  $('#app').innerHTML=`<div class="app-shell" ${bg?`style="background-image:url('${bg}')"`:''}><div class="background-default"></div><div class="background-overlay" style="background:linear-gradient(90deg,rgba(2,2,3,${Math.min(.92,config.overlayStrength+.24)}) 0%,rgba(2,2,3,${config.overlayStrength}) 46%,rgba(2,2,3,${Math.max(.2,config.overlayStrength-.18)}) 100%)"></div><button class="settings-button" id="settings" aria-label="Settings">⚙</button><div class="hero-copy"><button class="brand-mark" id="brand">${esc(config.brandLabel)}</button>${logo?`<div class="hero-logo-stage"><img class="hero-logo" src="${logo}" alt="${esc(config.appTitle)}" style="width:${Number(config.logoScale)||100}%;transform:translate(${Number(config.logoX)||0}px,${Number(config.logoY)||0}px)"></div>`:`<h1>${esc(config.appTitle)}</h1>`}<p>${esc(config.subtitle)}</p></div><div class="row-title">SHOWCASE</div><div class="card-row">${cards}</div><div class="menu-volume"><span class="volume-icon">🔊</span><input id="menuVolume" aria-label="Menu music volume" type="range" min="0" max="1" step="0.01" value="${Number(config.musicVolume ?? .45)}"><span id="menuVolumeValue">${Math.round(Number(config.musicVolume ?? .45)*100)}%</span></div></div>`;
+  const bg=await resolveUrl(config.background);
+  const logo=await resolveUrl(config.logo);
+  const docThumbs={};for(const d of config.documentSlots)docThumbs[d.id]=await resolveUrl(d.thumbnail);
+  const videoThumbs={};for(const v of config.videoSlots)videoThumbs[v.id]=await resolveUrl(v.thumbnail);
+
+  const documentCards=config.documentSlots.filter(d=>d.enabled).map(d=>`<button class="media-card document-card ${d.document?'':'disabled'}" data-document="${esc(d.id)}" ${d.document?'':'disabled'}>${docThumbs[d.id]?`<img src="${docThumbs[d.id]}" alt="">`:`<div class="card-fallback"><span>▤</span></div>`}<div class="card-shade"></div><div class="card-label">${esc(d.label)}</div>${d.document?'':'<div class="not-assigned">NOT ASSIGNED</div>'}</button>`).join('');
+  const videoCards=config.videoSlots.filter(v=>v.enabled).map(v=>`<button class="media-card video-card ${v.video?'':'disabled'}" data-video="${esc(v.id)}" ${v.video?'':'disabled'}>${videoThumbs[v.id]?`<img src="${videoThumbs[v.id]}" alt="">`:`<div class="card-fallback"><span>▶</span></div>`}<div class="card-shade"></div><div class="card-label">${esc(v.label)}</div>${v.video?'':'<div class="not-assigned">NOT ASSIGNED</div>'}</button>`).join('');
+
+  const scale=Math.max(35,Math.min(180,Number(config.logoScale)||100));
+  const logoWidth=Math.max(24,Math.min(88,scale*.52));
+  $('#app').innerHTML=`<div class="app-shell" ${bg?`style="background-image:url('${bg}')"`:''}><div class="background-default"></div><div class="background-overlay" style="background:linear-gradient(90deg,rgba(2,2,3,${Math.min(.92,config.overlayStrength+.24)}) 0%,rgba(2,2,3,${config.overlayStrength}) 46%,rgba(2,2,3,${Math.max(.2,config.overlayStrength-.18)}) 100%)"></div><button class="settings-button" id="settings" aria-label="Settings">⚙</button><div class="hero-copy"><button class="brand-mark" id="brand">${esc(config.brandLabel)}</button>${logo?`<div class="hero-logo-stage"><img class="hero-logo" src="${logo}" alt="${esc(config.appTitle)}" style="width:${logoWidth}vw;transform:translate(${Number(config.logoX)||0}px,${Number(config.logoY)||0}px)"></div>`:`<h1>${esc(config.appTitle)}</h1>`}<p>${esc(config.subtitle)}</p></div><div class="library-area"><section class="library-block"><div class="library-title">DOCUMENTS</div><div class="library-row document-row">${documentCards||'<div class="empty-row">ADD DOCUMENTS FROM CONFIGURATION</div>'}</div></section><section class="library-block"><div class="library-title">VIDEOS</div><div class="library-row video-row">${videoCards||'<div class="empty-row">ADD VIDEOS FROM CONFIGURATION</div>'}</div></section></div><div class="menu-volume"><span class="volume-icon">🔊</span><input id="menuVolume" aria-label="Menu music volume" type="range" min="0" max="1" step="0.01" value="${Number(config.musicVolume ?? .45)}"><span id="menuVolumeValue">${Math.round(Number(config.musicVolume ?? .45)*100)}%</span></div></div>`;
   $('#settings').addEventListener('click',()=>{clickSound();renderSettings()});
   const menuVolume=$('#menuVolume');if(menuVolume){menuVolume.oninput=e=>{config.musicVolume=+e.target.value;music.volume=config.musicVolume;$('#menuVolumeValue').textContent=Math.round(config.musicVolume*100)+'%';saveConfig();if(config.musicEnabled&&music.src&&music.paused)music.play().catch(()=>{})}}
-  $('[data-kind="pitch"]')?.addEventListener('click',async()=>{clickSound();if(config.pitch)await showPdf(config.pitch)});
-  document.querySelectorAll('[data-slot]').forEach(el=>el.addEventListener('click',async()=>{clickSound();const s=config.videoSlots.find(x=>x.id===el.dataset.slot);if(s?.video)await showVideo(s.video,s.label)}));
+  document.querySelectorAll('[data-document]').forEach(el=>el.addEventListener('click',async()=>{clickSound();const d=config.documentSlots.find(x=>x.id===el.dataset.document);if(d?.document)await showPdf(d.document,d.label)}));
+  document.querySelectorAll('[data-video]').forEach(el=>el.addEventListener('click',async()=>{clickSound();const v=config.videoSlots.find(x=>x.id===el.dataset.video);if(v?.video)await showVideo(v.video,v.label)}));
   $('.app-shell').addEventListener('pointerdown',()=>{if(config.musicEnabled)music.play().catch(()=>{})},{once:true});
 }
 async function showVideo(asset,label){
@@ -126,11 +150,11 @@ async function showVideo(asset,label){
   currentCleanup=()=>{clearTimeout(timer);v.pause();};
 }
 
-async function showPdf(asset){
+async function showPdf(asset,label='DOCUMENT'){
   cleanup();music.pause();
   const blob=await resolveBlob(asset);
   if(!blob){alert('PDF not available. Re-import it from Configuration.');return renderMenu()}
-  $('#app').innerHTML=`<div class="pdf-screen" id="pdfScreen"><div class="pdf-stage" id="pdfStage"><div class="pdf-loading">LOADING PITCH…</div></div><button class="pdf-nav pdf-prev" id="pdfPrev">‹</button><button class="pdf-nav pdf-next" id="pdfNext">›</button><div class="pdf-counter" id="counter"></div><button class="pdf-back" id="back">← MENU</button></div>`;
+  $('#app').innerHTML=`<div class="pdf-screen" id="pdfScreen"><div class="pdf-stage" id="pdfStage"><div class="pdf-loading">LOADING ${esc(label)}…</div></div><button class="pdf-nav pdf-prev" id="pdfPrev">‹</button><button class="pdf-nav pdf-next" id="pdfNext">›</button><div class="pdf-title">${esc(label)}</div><div class="pdf-counter" id="counter"></div><button class="pdf-back" id="back">← MENU</button></div>`;
   const stage=$('#pdfStage'),counter=$('#counter'),screen=$('#pdfScreen');
   let pdf=null,page=1,closed=false,startX=null,startY=null,currentCanvas=null,renderToken=0,navigating=false;
   const fail=(e)=>{console.error(e);stage.innerHTML=`<div class="viewer-error-inline"><strong>PDF ERROR</strong><small>${navigator.onLine?'The PDF could not be rendered. Try importing it again.':'Connect to internet once so the PDF engine can be cached, then retry offline.'}</small></div>`;$('#pdfPrev').hidden=true;$('#pdfNext').hidden=true;counter.textContent=''};
@@ -198,13 +222,36 @@ async function showPdf(asset){
 }
 function field(label,value,key,type='text'){return `<label>${label}<input data-key="${key}" type="${type}" value="${esc(value)}"></label>`}
 function assetRow(title,asset,kind,role,target){return `<div class="asset-row" data-asset-target="${target}" data-kind="${kind}" data-role="${role}"><div class="asset-info"><strong>${esc(title)}</strong><span>${asset?esc(asset.originalName)+(asset.size?' · '+fmt(asset.size):''):'Not assigned'}</span><div class="import-progress" hidden><i></i></div></div><div class="asset-actions">${asset?'<button class="tiny danger remove">Remove</button>':''}<button class="tiny pick">${asset?'Replace':'Choose file'}</button></div></div>`}
-function getTarget(path){if(path.startsWith('slot:')){const[,id,prop]=path.split(':');return config.videoSlots.find(s=>s.id===id)?.[prop]}return config[path]}
-function setTarget(path,val){if(path.startsWith('slot:')){const[,id,prop]=path.split(':');const s=config.videoSlots.find(s=>s.id===id);if(s)s[prop]=val}else config[path]=val;saveConfig()}
+function getCollectionSlot(kind,id){return (kind==='doc'?config.documentSlots:config.videoSlots).find(s=>s.id===id)}
+function getTarget(path){
+  const parts=path.split(':');
+  if(parts[0]==='doc'||parts[0]==='video'){return getCollectionSlot(parts[0],parts[1])?.[parts[2]]}
+  if(parts[0]==='slot'){return config.videoSlots.find(s=>s.id===parts[1])?.[parts[2]]}
+  return config[path]
+}
+function setTarget(path,val){
+  const parts=path.split(':');
+  if(parts[0]==='doc'||parts[0]==='video'){const slot=getCollectionSlot(parts[0],parts[1]);if(slot)slot[parts[2]]=val}
+  else if(parts[0]==='slot'){const slot=config.videoSlots.find(s=>s.id===parts[1]);if(slot)slot[parts[2]]=val}
+  else config[path]=val;
+  saveConfig()
+}
+function moveSlot(list,index,direction){const next=index+direction;if(next<0||next>=list.length)return;[list[index],list[next]]=[list[next],list[index]];saveConfig()}
+async function removeSlot(kind,id){
+  const list=kind==='doc'?config.documentSlots:config.videoSlots;
+  const index=list.findIndex(s=>s.id===id);if(index<0)return;
+  const slot=list[index];
+  const assets=kind==='doc'?[slot.document,slot.thumbnail]:[slot.video,slot.thumbnail];
+  for(const asset of assets)if(asset)await deleteAsset(asset);
+  list.splice(index,1);saveConfig();await renderSettings();
+}
+function slotControls(kind,id,index,total){return `<div class="slot-actions"><button class="tiny secondary move-up" ${index===0?'disabled':''}>↑</button><button class="tiny secondary move-down" ${index===total-1?'disabled':''}>↓</button><button class="tiny danger delete-slot">Delete</button></div>`}
 
 async function renderSettings(){
   cleanup();music.pause();const st=await storageStats();
-  const slotHtml=config.videoSlots.map(s=>`<div class="slot-card" data-slot="${s.id}"><div class="slot-top"><label class="switch-label"><input class="slot-enabled" type="checkbox" ${s.enabled?'checked':''}> Visible</label><label>Button text<input class="slot-label" value="${esc(s.label)}"></label></div>${assetRow('Video',s.video,'video',`video-${s.id}`,`slot:${s.id}:video`)}${assetRow('Card image',s.thumbnail,'image',`thumb-${s.id}`,`slot:${s.id}:thumbnail`)}</div>`).join('');
-  $('#app').innerHTML=`<div class="settings-screen"><header class="settings-header"><div><div class="eyebrow">PERPETUA TENEBRAE · PWA</div><h1>Showcase configuration</h1></div><button class="secondary" id="done">Done</button></header><main class="settings-content"><section class="settings-section" id="statusBox"><div class="readiness-head"><div><div class="eyebrow">EVENT STATUS</div><h2>CHECKING…</h2></div><button class="tiny secondary" id="recheck">Recheck</button></div><div class="status-grid" id="statusGrid"></div><div class="device-tools"><button id="installFromSettings">Install app</button><button class="secondary" id="offlineFromSettings">Offline check</button></div></section><section class="settings-section"><h2>Identity & menu</h2><div class="form-grid">${field('Title',config.appTitle,'appTitle')}${field('Subtitle',config.subtitle,'subtitle')}${field('Studio label',config.brandLabel,'brandLabel')}${field('Pitch button text',config.pitchLabel,'pitchLabel')}<label>Background darkness <span id="overlayVal">${Math.round(config.overlayStrength*100)}%</span><input id="overlay" type="range" min="0" max="0.85" step="0.01" value="${config.overlayStrength}"></label></div>${assetRow('Menu background (16:9 recommended, ≥1920×1080)',config.background,'image','menu-background','background')}${assetRow('Perpetua Tenebrae logo (PNG/WebP with transparency)',config.logo,'image','menu-logo','logo')}<div class="form-grid logo-controls"><label>Logo size <span id="logoScaleVal">${Math.round(config.logoScale||100)}%</span><input id="logoScale" type="range" min="35" max="180" step="1" value="${config.logoScale||100}"></label><label>Logo horizontal <span id="logoXVal">${Math.round(config.logoX||0)} px</span><input id="logoX" type="range" min="-300" max="300" step="1" value="${config.logoX||0}"></label><label>Logo vertical <span id="logoYVal">${Math.round(config.logoY||0)} px</span><input id="logoY" type="range" min="-180" max="180" step="1" value="${config.logoY||0}"></label></div>${assetRow('Custom font (.ttf/.otf/.woff)',config.customFont,'font','custom-font','customFont')}</section><section class="settings-section"><h2>Pitch</h2>${assetRow('Pitch PDF',config.pitch,'pdf','pitch','pitch')}${assetRow('Pitch card image',config.pitchThumbnail,'image','pitch-thumb','pitchThumbnail')}</section><section class="settings-section"><h2>Videos</h2>${slotHtml}</section><section class="settings-section"><h2>Audio</h2><label class="switch-label"><input id="musicEnabled" type="checkbox" ${config.musicEnabled?'checked':''}> Play menu music in loop</label><div class="form-grid"><label>Music volume <span>${Math.round(config.musicVolume*100)}%</span><input id="musicVolume" type="range" min="0" max="1" step=".01" value="${config.musicVolume}"></label><label>Button sound volume <span>${Math.round(config.uiSoundVolume*100)}%</span><input id="sfxVolume" type="range" min="0" max="1" step=".01" value="${config.uiSoundVolume}"></label></div>${assetRow('Main theme / menu music',config.menuMusic,'audio','menu-music','menuMusic')}${assetRow('Button sound',config.buttonSound,'audio','button-sfx','buttonSound')}</section><section class="settings-section"><h2>Offline storage</h2><div class="storage-card"><div><span>Used by browser</span><strong>${fmt(st.usage)}</strong></div><div><span>Available quota</span><strong>${st.quota?fmt(st.quota):'Browser managed'}</strong></div><div><span>Media storage</span><strong>${st.opfs?'OPFS':'IndexedDB fallback'}</strong></div><div><span>Persistence</span><strong>${st.persisted?'✓ GRANTED':'NOT GRANTED'}</strong></div></div><div class="storage-actions"><button id="persist">Request persistent storage</button></div><p class="settings-note">Imported media stays only on this device. It is not uploaded to the server.</p></section><section class="settings-section note-section"><h2>Event mode</h2><p>Install the PWA on the Home Screen first, then import media from inside the installed app. Once the readiness check is green, enable airplane mode and test again.</p></section></main></div>`;
+  const docsHtml=config.documentSlots.map((d,index)=>`<div class="slot-card" data-kind="doc" data-slot="${d.id}"><div class="slot-top"><label class="switch-label"><input class="slot-enabled" type="checkbox" ${d.enabled?'checked':''}> Visible</label><label>Button text<input class="slot-label" value="${esc(d.label)}"></label>${slotControls('doc',d.id,index,config.documentSlots.length)}</div>${assetRow('PDF document',d.document,'pdf',`document-${d.id}`,`doc:${d.id}:document`)}${assetRow('Card image',d.thumbnail,'image',`document-thumb-${d.id}`,`doc:${d.id}:thumbnail`)}</div>`).join('');
+  const videosHtml=config.videoSlots.map((v,index)=>`<div class="slot-card" data-kind="video" data-slot="${v.id}"><div class="slot-top"><label class="switch-label"><input class="slot-enabled" type="checkbox" ${v.enabled?'checked':''}> Visible</label><label>Button text<input class="slot-label" value="${esc(v.label)}"></label>${slotControls('video',v.id,index,config.videoSlots.length)}</div>${assetRow('Video',v.video,'video',`video-${v.id}`,`video:${v.id}:video`)}${assetRow('Card image',v.thumbnail,'image',`video-thumb-${v.id}`,`video:${v.id}:thumbnail`)}</div>`).join('');
+  $('#app').innerHTML=`<div class="settings-screen"><header class="settings-header"><div><div class="eyebrow">PERPETUA TENEBRAE · PWA</div><h1>Showcase configuration</h1></div><button class="secondary" id="done">Done</button></header><main class="settings-content"><section class="settings-section" id="statusBox"><div class="readiness-head"><div><div class="eyebrow">EVENT STATUS</div><h2>CHECKING…</h2></div><button class="tiny secondary" id="recheck">Recheck</button></div><div class="status-grid" id="statusGrid"></div><div class="device-tools"><button id="installFromSettings">Install app</button><button class="secondary" id="offlineFromSettings">Offline check</button></div></section><section class="settings-section"><h2>Identity & menu</h2><div class="form-grid">${field('Title fallback',config.appTitle,'appTitle')}${field('Subtitle',config.subtitle,'subtitle')}${field('Studio label',config.brandLabel,'brandLabel')}<label>Background darkness <span id="overlayVal">${Math.round(config.overlayStrength*100)}%</span><input id="overlay" type="range" min="0" max="0.85" step="0.01" value="${config.overlayStrength}"></label></div>${assetRow('Menu background (16:9 recommended, ≥1920×1080)',config.background,'image','menu-background','background')}${assetRow('Perpetua Tenebrae logo (PNG/WebP with transparency)',config.logo,'image','menu-logo','logo')}<div class="form-grid logo-controls"><label>Logo size <span id="logoScaleVal">${Math.round(config.logoScale||100)}%</span><input id="logoScale" type="range" min="35" max="180" step="1" value="${config.logoScale||100}"></label><label>Logo horizontal <span id="logoXVal">${Math.round(config.logoX||0)} px</span><input id="logoX" type="range" min="-300" max="300" step="1" value="${config.logoX||0}"></label><label>Logo vertical <span id="logoYVal">${Math.round(config.logoY||0)} px</span><input id="logoY" type="range" min="-180" max="180" step="1" value="${config.logoY||0}"></label></div>${assetRow('Custom font (.ttf/.otf/.woff)',config.customFont,'font','custom-font','customFont')}</section><section class="settings-section"><div class="section-title-row"><div><h2>Documents</h2><p class="settings-note">PDF buttons shown on the top row.</p></div><button id="addDocument">+ Add document</button></div>${docsHtml||'<p class="settings-note">No document buttons yet.</p>'}</section><section class="settings-section"><div class="section-title-row"><div><h2>Videos</h2><p class="settings-note">Video buttons shown in the lower carousel.</p></div><button id="addVideo">+ Add video</button></div>${videosHtml||'<p class="settings-note">No video buttons yet.</p>'}</section><section class="settings-section"><h2>Audio</h2><label class="switch-label"><input id="musicEnabled" type="checkbox" ${config.musicEnabled?'checked':''}> Play menu music in loop</label><div class="form-grid"><label>Music volume <span>${Math.round(config.musicVolume*100)}%</span><input id="musicVolume" type="range" min="0" max="1" step=".01" value="${config.musicVolume}"></label><label>Button sound volume <span>${Math.round(config.uiSoundVolume*100)}%</span><input id="sfxVolume" type="range" min="0" max="1" step=".01" value="${config.uiSoundVolume}"></label></div>${assetRow('Main theme / menu music',config.menuMusic,'audio','menu-music','menuMusic')}${assetRow('Button sound',config.buttonSound,'audio','button-sfx','buttonSound')}</section><section class="settings-section"><h2>Offline storage</h2><div class="storage-card"><div><span>Used by browser</span><strong>${fmt(st.usage)}</strong></div><div><span>Available quota</span><strong>${st.quota?fmt(st.quota):'Browser managed'}</strong></div><div><span>Media storage</span><strong>${st.opfs?'OPFS':'IndexedDB fallback'}</strong></div><div><span>Persistence</span><strong>${st.persisted?'✓ GRANTED':'NOT GRANTED'}</strong></div></div><div class="storage-actions"><button id="persist">Request persistent storage</button></div><p class="settings-note">Imported media stays only on this device. It is not uploaded to the server.</p></section><section class="settings-section note-section"><h2>Event mode</h2><p>Install the PWA on the Home Screen first, then import media from inside the installed app. Once the readiness check is green, enable airplane mode and test again.</p></section></main></div>`;
   $('#done').onclick=renderMenu;
   document.querySelectorAll('[data-key]').forEach(i=>i.oninput=()=>{config[i.dataset.key]=i.value;saveConfig()});
   $('#overlay').oninput=e=>{config.overlayStrength=+e.target.value;$('#overlayVal').textContent=Math.round(config.overlayStrength*100)+'%';saveConfig()};
@@ -215,15 +262,44 @@ async function renderSettings(){
   $('#musicVolume').oninput=e=>{config.musicVolume=+e.target.value;saveConfig()};
   $('#sfxVolume').oninput=e=>{config.uiSoundVolume=+e.target.value;saveConfig()};
   $('#persist').onclick=async()=>{await navigator.storage?.persist?.();renderSettings()};
-  $('#installFromSettings').onclick=doInstall;
-  $('#offlineFromSettings').onclick=showReadiness;
-  document.querySelectorAll('.slot-card').forEach(card=>{const s=config.videoSlots.find(x=>x.id===card.dataset.slot);$('.slot-enabled',card).onchange=e=>{s.enabled=e.target.checked;saveConfig();refreshSettingsStatus()};$('.slot-label',card).oninput=e=>{s.label=e.target.value;saveConfig()}});
+  $('#installFromSettings').onclick=doInstall;$('#offlineFromSettings').onclick=showReadiness;
+  $('#addDocument').onclick=async()=>{config.documentSlots.push({id:newSlotId('document'),label:'NEW DOCUMENT',enabled:true});saveConfig();await renderSettings()};
+  $('#addVideo').onclick=async()=>{config.videoSlots.push({id:newSlotId('video'),label:'NEW VIDEO',enabled:true});saveConfig();await renderSettings()};
+
+  document.querySelectorAll('.slot-card').forEach(card=>{
+    const kind=card.dataset.kind,id=card.dataset.slot,list=kind==='doc'?config.documentSlots:config.videoSlots,slot=list.find(x=>x.id===id),index=list.indexOf(slot);
+    $('.slot-enabled',card).onchange=e=>{slot.enabled=e.target.checked;saveConfig();refreshSettingsStatus()};
+    $('.slot-label',card).oninput=e=>{slot.label=e.target.value;saveConfig()};
+    $('.move-up',card).onclick=async()=>{moveSlot(list,index,-1);await renderSettings()};
+    $('.move-down',card).onclick=async()=>{moveSlot(list,index,1);await renderSettings()};
+    $('.delete-slot',card).onclick=async()=>{if(confirm(`Delete ${slot.label}?`))await removeSlot(kind,id)};
+  });
   document.querySelectorAll('.asset-row').forEach(row=>{const target=row.dataset.assetTarget;$('.pick',row).onclick=async()=>{const button=$('.pick',row),bar=$('.import-progress',row),fill=$('i',bar);button.disabled=true;bar.hidden=false;const old=getTarget(target);try{const next=await importAsset(row.dataset.role,row.dataset.kind,r=>{fill.style.width=Math.max(3,r*100)+'%';button.textContent='Importing '+Math.round(r*100)+'%'});if(next){if(old)await deleteAsset(old);setTarget(target,next);await renderSettings()}}catch(e){alert('Could not import file.\n\n'+e)}finally{button.disabled=false}};$('.remove',row)?.addEventListener('click',async()=>{const old=getTarget(target);if(old)await deleteAsset(old);setTarget(target,undefined);await renderSettings()})});
   $('#recheck').onclick=refreshSettingsStatus;await refreshSettingsStatus();
 }
-async function refreshSettingsStatus(){const grid=$('#statusGrid');if(!grid)return;const required=[['Pitch',config.pitch],...config.videoSlots.filter(s=>s.enabled).map(s=>[s.label,s.video])];const optional=[['Background',config.background],['Menu music',config.menuMusic]];const checked=[];for(const [name,a] of [...required,...optional])checked.push([name,a?await assetExists(a):false,required.some(r=>r[0]===name)]);const ready=required.every(([name,a])=>a&&checked.find(c=>c[0]===name)?.[1]);$('#statusBox').classList.toggle('ready',ready);$('#statusBox h2').textContent=ready?'DEVICE READY FOR PRESENTATION':'SETUP INCOMPLETE';grid.innerHTML=checked.map(([n,ok,req])=>`<div><span>${esc(n)}</span><b>${ok?'✓ READY':req?'— MISSING':'OPTIONAL'}</b></div>`).join('')}
+async function refreshSettingsStatus(){
+  const grid=$('#statusGrid');if(!grid)return;
+  const required=[
+    ...config.documentSlots.filter(s=>s.enabled).map(s=>[s.label,s.document]),
+    ...config.videoSlots.filter(s=>s.enabled).map(s=>[s.label,s.video])
+  ];
+  const optional=[['Background',config.background],['Menu music',config.menuMusic]];
+  const checked=[];for(const [name,a] of [...required,...optional])checked.push([name,a?await assetExists(a):false,required.some(r=>r[0]===name)]);
+  const ready=required.length>0&&required.every(([name,a])=>a&&checked.find(c=>c[0]===name)?.[1]);
+  $('#statusBox').classList.toggle('ready',ready);$('#statusBox h2').textContent=ready?'DEVICE READY FOR PRESENTATION':'SETUP INCOMPLETE';
+  grid.innerHTML=checked.map(([n,ok,req])=>`<div><span>${esc(n)}</span><b>${ok?'✓ READY':req?'— MISSING':'OPTIONAL'}</b></div>`).join('')||'<div><span>Library</span><b>— EMPTY</b></div>';
+}
 
-async function showReadiness(){const required=[['Pitch',config.pitch],...config.videoSlots.filter(s=>s.enabled).map(s=>[s.label,s.video])];const optional=[['Background',config.background],['Menu music',config.menuMusic]];const items=[];for(const [n,a] of [...required,...optional])items.push([n,a?await assetExists(a):false,required.some(r=>r[0]===n)]);let sw=false;try{sw=!!(await navigator.serviceWorker?.ready)}catch{}const st=await storageStats();const ready=sw&&required.every(([n,a])=>a&&items.find(i=>i[0]===n)?.[1]);const m=document.createElement('div');m.className='modal-backdrop';m.innerHTML=`<div class="ready-modal ${ready?'all-ready':''}"><div class="eyebrow">OFFLINE CHECK</div><h2>${ready?'DEVICE READY':'SETUP INCOMPLETE'}</h2><div class="ready-list"><div><span>Application cached</span><b>${sw?'✓':'—'}</b></div>${items.map(([n,ok,req])=>`<div><span>${esc(n)}${req?'':' · optional'}</span><b>${ok?'✓':req?'—':'○'}</b></div>`).join('')}<div><span>Persistent storage</span><b>${st.persisted?'✓':'○'}</b></div></div><p>${ready?'You can enable airplane mode and run one final test before the event.':'Import the missing required media from Configuration, then run this check again.'}</p><div class="modal-actions"><button id="close">Close</button></div></div>`;document.body.appendChild(m);$('#close',m).onclick=()=>m.remove();m.onpointerdown=e=>{if(e.target===m)m.remove()}}
+async function showReadiness(){
+  const required=[
+    ...config.documentSlots.filter(s=>s.enabled).map(s=>[s.label,s.document]),
+    ...config.videoSlots.filter(s=>s.enabled).map(s=>[s.label,s.video])
+  ];
+  const optional=[['Background',config.background],['Menu music',config.menuMusic]];
+  const items=[];for(const [n,a] of [...required,...optional])items.push([n,a?await assetExists(a):false,required.some(r=>r[0]===n)]);
+  let sw=false;try{sw=!!(await navigator.serviceWorker?.ready)}catch{}const st=await storageStats();const ready=sw&&required.length>0&&required.every(([n,a])=>a&&items.find(i=>i[0]===n)?.[1]);
+  const m=document.createElement('div');m.className='modal-backdrop';m.innerHTML=`<div class="ready-modal ${ready?'all-ready':''}"><div class="eyebrow">OFFLINE CHECK</div><h2>${ready?'DEVICE READY':'SETUP INCOMPLETE'}</h2><div class="ready-list"><div><span>Application cached</span><b>${sw?'✓':'—'}</b></div>${items.map(([n,ok,req])=>`<div><span>${esc(n)}${req?'':' · optional'}</span><b>${ok?'✓':req?'—':'○'}</b></div>`).join('')}<div><span>Persistent storage</span><b>${st.persisted?'✓':'○'}</b></div></div><p>${ready?'You can enable airplane mode and run one final test before the event.':'Assign files to every visible document/video button, then run this check again.'}</p><div class="modal-actions"><button id="close">Close</button></div></div>`;document.body.appendChild(m);$('#close',m).onclick=()=>m.remove();m.onpointerdown=e=>{if(e.target===m)m.remove()}
+}
 
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e});window.addEventListener('appinstalled',()=>{installPrompt=null});
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(console.warn);

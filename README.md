@@ -1,14 +1,15 @@
-# Perpetua Tenebrae Showcase PWA v2.4
+# Perpetua Tenebrae Showcase PWA v2.5
 
-Static installable PWA for event presentations.
+Showcase offline para eventos, instalable desde Chrome/Safari.
 
-Changes in v2.4:
-- Settings opens directly, without password.
-- Install and Offline Check moved into Settings.
-- Cleaner presentation menu.
-- Menu volume control moved lower.
-- PDF page-slide animation.
-- PDF viewer stays black while the next page renders to avoid white flashes.
-- Menu music pauses for videos and resumes when returning to the menu.
+## Novedades v2.5
+- Logo con escalado real: el subtítulo baja conforme crece el logo.
+- Dos filas compactas en el menú: DOCUMENTS y VIDEOS.
+- Documentos PDF dinámicos: añadir, renombrar, ordenar, ocultar y eliminar botones.
+- Vídeos dinámicos: añadir, renombrar, ordenar, ocultar y eliminar botones.
+- Ambas filas admiten desplazamiento horizontal táctil; la fila de vídeos funciona como carrusel.
+- Se conserva automáticamente el Pitch y los vídeos de configuraciones anteriores.
+- Visor PDF interno con transición lateral y fondo negro durante el renderizado.
+- Controles de volumen de menú y vídeo.
 
-Upload all files directly to the GitHub Pages repository root.
+Todos los archivos de este paquete van directamente en la raíz del repositorio de GitHub Pages.
