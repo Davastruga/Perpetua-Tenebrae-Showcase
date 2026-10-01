@@ -1,4 +1,4 @@
-# ACTUALIZAR A v2.5
+# ACTUALIZAR A v2.6
 
 1. Descomprime el ZIP.
 2. Sube/reemplaza TODOS los archivos directamente en la raíz del repositorio GitHub Pages.
@@ -14,5 +14,5 @@
 - El tamaño del logo afecta ahora al espacio real del menú; el subtítulo se desplaza hacia abajo con él.
 
 
-### v2.5.1
+### v2.6
 Corregido el fondo personalizado del menú: ahora la imagen seleccionada se muestra correctamente.

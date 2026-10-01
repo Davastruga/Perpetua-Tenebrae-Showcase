@@ -10,7 +10,7 @@ html, body, #app { width: 100%; height: 100%; margin: 0; overflow: hidden; backg
 button, input { font: inherit; }
 button { -webkit-tap-highlight-color: transparent; }
 
-.app-shell { position: fixed; inset: 0; width: 100vw; height: 100dvh; background-size: cover; background-position: center; background-repeat: no-repeat; isolation: isolate; }
+.app-shell { position: fixed; inset: 0; width: 100vw; height: 100dvh; background-color:#000; background-size:100% auto; background-position:center center; background-repeat:no-repeat; isolation:isolate; }
 .app-shell.has-background .background-default { display:none; }
 .background-default { position: absolute; inset: 0; z-index: -3; background: radial-gradient(circle at 72% 38%, #302c28 0, #111112 35%, #050506 74%); }
 .background-default::before { content:""; position:absolute; inset:0; opacity:.5; background-image: linear-gradient(115deg, transparent 0 50%, rgba(255,255,255,.025) 50.2% 50.4%, transparent 50.6%), radial-gradient(circle at 70% 48%, rgba(220,185,126,.15), transparent 26%); }
@@ -343,3 +343,12 @@ button.secondary { background:#282727; color:#fff; border:1px solid #3d3b39; }
   .slot-top { grid-template-columns: 1fr; }
   .slot-actions { justify-content: flex-start; }
 }
+
+
+/* v2.6 cinematic screen transitions */
+.screen-fade {
+  position:fixed; inset:0; z-index:10000; background:#000; opacity:0; pointer-events:none;
+  transition:opacity 320ms ease; will-change:opacity;
+}
+.screen-fade.is-black { opacity:1; pointer-events:auto; }
+.screen-fade.instant { transition:none!important; }
