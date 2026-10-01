@@ -3,8 +3,8 @@ const OPFS_DIR='pt-showcase-media';
 const DB_NAME='pt-showcase-assets';
 const DB_STORE='assets';
 const objectUrls=new Map();
-const PDFJS_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs';
-const PDFJS_WORKER_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
+const PDFJS_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
+const PDFJS_WORKER_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
 let pdfjsPromise=null;
 
 const DEFAULT_CONFIG={
@@ -239,11 +239,11 @@ async function showPdf(asset,label='DOCUMENT'){
   const stage=$('#pdfStage'),counter=$('#counter'),screen=$('#pdfScreen');
   bindMusicControls('doc');
   let pdf=null,page=1,closed=false,startX=null,startY=null,currentCanvas=null,renderToken=0,navigating=false;
-  const fail=(e)=>{console.error(e);stage.innerHTML=`<div class="viewer-error-inline"><strong>PDF ERROR</strong><small>${navigator.onLine?'The PDF could not be rendered. Try importing it again.':'Connect to internet once so the PDF engine can be cached, then retry offline.'}</small></div>`;$('#pdfPrev').hidden=true;$('#pdfNext').hidden=true;counter.textContent=''};
+  const fail=(e)=>{console.error(e);const detail=esc(e?.message||String(e||''));stage.innerHTML=`<div class="viewer-error-inline"><strong>PDF ERROR</strong><small>${navigator.onLine?'The PDF could not be rendered.':'Connect to internet once so the PDF engine can be cached, then retry offline.'}</small>${detail?`<small class="pdf-error-detail">${detail}</small>`:''}</div>`;$('#pdfPrev').hidden=true;$('#pdfNext').hidden=true;counter.textContent=''};
   try{
     const pdfjs=await getPdfJs();
     const bytes=new Uint8Array(await blob.arrayBuffer());
-    pdf=await pdfjs.getDocument({data:bytes,isImageDecoderSupported:false,isOffscreenCanvasSupported:false,enableHWA:false}).promise;
+    pdf=await pdfjs.getDocument({data:bytes}).promise;
     if(closed)return;
 
     const updateNav=()=>{

@@ -1,8 +1,8 @@
-# Perpetua Tenebrae Showcase PWA v2.7.1
+# Perpetua Tenebrae Showcase PWA v2.7.2
 
 Event presentation PWA for Perpetua Tenebrae.
 
-## v2.7.1
+## v2.7.2
 - Menu music pause/resume and restart controls.
 - Menu music continues while viewing PDF documents.
 - PDF viewer includes persistent music controls and volume.

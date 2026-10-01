@@ -1,6 +1,6 @@
-const CACHE='pt-showcase-v2.7.1';
+const CACHE='pt-showcase-v2.7.2';
 const APP_SHELL=['./','./index.html','./styles.css','./app.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./icon-maskable-512.png'];
-const OPTIONAL=['https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs','https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs'];
+const OPTIONAL=['https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs','https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs'];
 self.addEventListener('install',event=>{
   event.waitUntil(caches.open(CACHE).then(async cache=>{
     await cache.addAll(APP_SHELL);

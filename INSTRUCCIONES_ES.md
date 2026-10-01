@@ -1,4 +1,4 @@
-# Perpetua Tenebrae Showcase PWA v2.7.1
+# Perpetua Tenebrae Showcase PWA v2.7.2
 
 1. Sustituye en GitHub los archivos actuales por los de esta carpeta.
 2. Todo va directamente en la raíz del repositorio.
