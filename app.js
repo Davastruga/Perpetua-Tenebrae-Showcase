@@ -3,8 +3,8 @@ const OPFS_DIR='pt-showcase-media';
 const DB_NAME='pt-showcase-assets';
 const DB_STORE='assets';
 const objectUrls=new Map();
-const PDFJS_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.min.mjs';
-const PDFJS_WORKER_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@4.10.38/build/pdf.worker.min.mjs';
+const PDFJS_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.min.mjs';
+const PDFJS_WORKER_URL='https://cdn.jsdelivr.net/npm/pdfjs-dist@6.3.289/build/pdf.worker.min.mjs';
 let pdfjsPromise=null;
 
 const DEFAULT_CONFIG={
@@ -28,6 +28,8 @@ music.addEventListener('ended',()=>{
 let sfx=new Audio(); sfx.preload='auto';
 let installPrompt=null;
 let currentCleanup=null;
+let musicUserPaused=false;
+let musicPausedForVideo=false;
 
 function $(sel,root=document){return root.querySelector(sel)}
 function esc(s=''){return String(s).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]))}
@@ -113,7 +115,48 @@ function clickSound(){if(!sfx.src)return;sfx.currentTime=0;sfx.play().catch(()=>
 async function syncAudio(){
   const sfxUrl=await resolveUrl(config.buttonSound);if(sfxUrl){sfx.src=sfxUrl;sfx.volume=config.uiSoundVolume}
   const m=await resolveUrl(config.menuMusic);if(music.src!==m){music.pause();music.src=m||'';if(m)music.load()}music.volume=config.musicVolume;
-  if(config.musicEnabled&&m)music.play().catch(()=>{});else music.pause();
+  if(config.musicEnabled&&m&&!musicUserPaused&&!musicPausedForVideo)music.play().catch(()=>{});else music.pause();
+}
+function musicControlsHtml(prefix,extraClass=''){
+  const volume=Math.max(0,Math.min(1,Number(config.musicVolume ?? .45)));
+  return `<div class="music-controls ${extraClass}"><button class="music-action" id="${prefix}MusicToggle" aria-label="Pause or resume menu music">${music.paused?'▶':'Ⅱ'}</button><button class="music-action restart" id="${prefix}MusicRestart" aria-label="Restart menu music">↺</button><span class="volume-icon">🔊</span><input id="${prefix}MusicVolume" aria-label="Menu music volume" type="range" min="0" max="1" step="0.01" value="${volume}"><span id="${prefix}MusicVolumeValue">${Math.round(volume*100)}%</span></div>`;
+}
+function bindMusicControls(prefix){
+  const toggle=$(`#${prefix}MusicToggle`),restart=$(`#${prefix}MusicRestart`),volume=$(`#${prefix}MusicVolume`),value=$(`#${prefix}MusicVolumeValue`);
+  const update=()=>{if(toggle)toggle.textContent=music.paused?'▶':'Ⅱ'};
+  if(toggle)toggle.onclick=()=>{
+    if(!config.musicEnabled||!music.src)return;
+    if(music.paused){musicUserPaused=false;musicPausedForVideo=false;music.play().catch(()=>{});}else{musicUserPaused=true;music.pause();}
+    update();
+  };
+  if(restart)restart.onclick=()=>{
+    if(!music.src)return;
+    music.currentTime=0;musicUserPaused=false;musicPausedForVideo=false;
+    if(config.musicEnabled)music.play().catch(()=>{});
+    update();
+  };
+  if(volume)volume.oninput=e=>{
+    config.musicVolume=+e.target.value;music.volume=config.musicVolume;if(value)value.textContent=Math.round(config.musicVolume*100)+'%';saveConfig();
+    if(config.musicEnabled&&music.src&&music.paused&&!musicUserPaused&&!musicPausedForVideo)music.play().catch(()=>{});
+    update();
+  };
+  music.addEventListener('play',update,{once:true});
+  music.addEventListener('pause',update,{once:true});
+}
+function updateCarouselFade(row){
+  if(!row)return;
+  row.classList.remove('fade-left','fade-right','fade-both','fade-none');
+  const max=Math.max(0,row.scrollWidth-row.clientWidth);
+  if(max<3){row.classList.add('fade-none');return;}
+  if(row.scrollLeft<=3)row.classList.add('fade-right');
+  else if(row.scrollLeft>=max-3)row.classList.add('fade-left');
+  else row.classList.add('fade-both');
+}
+function bindCarouselFades(){
+  document.querySelectorAll('.library-row').forEach(row=>{
+    const update=()=>updateCarouselFade(row);update();row.addEventListener('scroll',update,{passive:true});
+    requestAnimationFrame(update);
+  });
 }
 async function applyCustomFont(){const old=$('#custom-font-style');old?.remove();const u=await resolveUrl(config.customFont);if(!u)return;const st=document.createElement('style');st.id='custom-font-style';st.textContent=`@font-face{font-family:PTCustom;src:url('${u}')} :root{--showcase-font:PTCustom,Inter,Arial,sans-serif}`;document.head.appendChild(st)}
 
@@ -154,18 +197,18 @@ async function renderMenu(){
 
   const scale=Math.max(35,Math.min(180,Number(config.logoScale)||100));
   const logoWidth=Math.max(24,Math.min(88,scale*.52));
-  $('#app').innerHTML=`<div class="app-shell ${bg?'has-background':''}" ${bg?`style="background-image:url('${bg}')"`:''}><div class="background-default"></div><div class="background-overlay" style="background:linear-gradient(90deg,rgba(2,2,3,${Math.min(.92,config.overlayStrength+.24)}) 0%,rgba(2,2,3,${config.overlayStrength}) 46%,rgba(2,2,3,${Math.max(.2,config.overlayStrength-.18)}) 100%)"></div><button class="settings-button" id="settings" aria-label="Settings">⚙</button><div class="hero-copy"><button class="brand-mark" id="brand">${esc(config.brandLabel)}</button>${logo?`<div class="hero-logo-stage"><img class="hero-logo" src="${logo}" alt="${esc(config.appTitle)}" style="width:${logoWidth}vw;transform:translate(${Number(config.logoX)||0}px,${Number(config.logoY)||0}px)"></div>`:`<h1>${esc(config.appTitle)}</h1>`}<p>${esc(config.subtitle)}</p></div><div class="library-area"><section class="library-block"><div class="library-title">DOCUMENTS</div><div class="library-row document-row">${documentCards||'<div class="empty-row">ADD DOCUMENTS FROM CONFIGURATION</div>'}</div></section><section class="library-block"><div class="library-title">VIDEOS</div><div class="library-row video-row">${videoCards||'<div class="empty-row">ADD VIDEOS FROM CONFIGURATION</div>'}</div></section></div><div class="menu-volume"><span class="volume-icon">🔊</span><input id="menuVolume" aria-label="Menu music volume" type="range" min="0" max="1" step="0.01" value="${Number(config.musicVolume ?? .45)}"><span id="menuVolumeValue">${Math.round(Number(config.musicVolume ?? .45)*100)}%</span></div></div>`;
+  $('#app').innerHTML=`<div class="app-shell ${bg?'has-background':''}" ${bg?`style="background-image:url('${bg}')"`:''}><div class="background-default"></div><div class="background-overlay" style="background:linear-gradient(90deg,rgba(2,2,3,${Math.min(.92,config.overlayStrength+.24)}) 0%,rgba(2,2,3,${config.overlayStrength}) 46%,rgba(2,2,3,${Math.max(.2,config.overlayStrength-.18)}) 100%)"></div><button class="settings-button" id="settings" aria-label="Settings">⚙</button><div class="hero-copy"><button class="brand-mark" id="brand">${esc(config.brandLabel)}</button>${logo?`<div class="hero-logo-stage"><img class="hero-logo" src="${logo}" alt="${esc(config.appTitle)}" style="width:${logoWidth}vw;transform:translate(${Number(config.logoX)||0}px,${Number(config.logoY)||0}px)"></div>`:`<h1>${esc(config.appTitle)}</h1>`}<p>${esc(config.subtitle)}</p></div><div class="library-area"><section class="library-block"><div class="library-title">DOCUMENTS</div><div class="library-row document-row">${documentCards||'<div class="empty-row">ADD DOCUMENTS FROM CONFIGURATION</div>'}</div></section><section class="library-block"><div class="library-title">VIDEOS</div><div class="library-row video-row">${videoCards||'<div class="empty-row">ADD VIDEOS FROM CONFIGURATION</div>'}</div></section></div>${musicControlsHtml('menu','menu-music-controls')}</div>`;
   $('#settings').addEventListener('click',()=>{clickSound();changeView(renderSettings)});
-  const menuVolume=$('#menuVolume');if(menuVolume){menuVolume.oninput=e=>{config.musicVolume=+e.target.value;music.volume=config.musicVolume;$('#menuVolumeValue').textContent=Math.round(config.musicVolume*100)+'%';saveConfig();if(config.musicEnabled&&music.src&&music.paused)music.play().catch(()=>{})}}
-  document.querySelectorAll('[data-document]').forEach(el=>el.addEventListener('click',async()=>{clickSound();const d=config.documentSlots.find(x=>x.id===el.dataset.document);if(d?.document){music.pause();await changeView(()=>showPdf(d.document,d.label))}}));
-  document.querySelectorAll('[data-video]').forEach(el=>el.addEventListener('click',async()=>{clickSound();const v=config.videoSlots.find(x=>x.id===el.dataset.video);if(v?.video){music.pause();await changeView(()=>showVideo(v.video,v.label))}}));
-  $('.app-shell').addEventListener('pointerdown',()=>{if(config.musicEnabled)music.play().catch(()=>{})},{once:true});
+  bindMusicControls('menu');bindCarouselFades();
+  document.querySelectorAll('[data-document]').forEach(el=>el.addEventListener('click',async()=>{clickSound();const d=config.documentSlots.find(x=>x.id===el.dataset.document);if(d?.document){await changeView(()=>showPdf(d.document,d.label))}}));
+  document.querySelectorAll('[data-video]').forEach(el=>el.addEventListener('click',async()=>{clickSound();const v=config.videoSlots.find(x=>x.id===el.dataset.video);if(v?.video){musicPausedForVideo=!music.paused;music.pause();await changeView(()=>showVideo(v.video,v.label))}}));
+  $('.app-shell').addEventListener('pointerdown',()=>{if(config.musicEnabled&&!musicUserPaused&&!musicPausedForVideo)music.play().catch(()=>{})},{once:true});
 }
 async function showVideo(asset,label){
   cleanup();
   music.pause();
   const src=await resolveUrl(asset);
-  if(!src){alert('Video not available. Re-import it from Configuration.');return renderMenu()}
+  if(!src){musicPausedForVideo=false;alert('Video not available. Re-import it from Configuration.');return renderMenu()}
   const initialVolume=Math.max(0,Math.min(1,Number(config.videoVolume ?? .85)));
   $('#app').innerHTML=`<div class="player-screen"><video id="vid" class="video-element" src="${src}" playsinline autoplay></video><div class="video-controls is-visible" id="controls"><button class="back-pill" id="back">← <span>MENU</span></button><div class="player-title">${esc(label)}</div><button class="play-button" id="play">Ⅱ</button><div class="video-bottom-controls"><div class="timeline-wrap"><span id="now">00:00</span><input id="timeline" class="timeline" type="range" min="0" max="0.01" step="0.05" value="0"><span id="dur">00:00</span></div><div class="video-volume-wrap"><button class="video-mute" id="videoMute" aria-label="Mute video">🔊</button><input id="videoVolume" class="video-volume" aria-label="Video volume" type="range" min="0" max="1" step="0.01" value="${initialVolume}"><span id="videoVolumeValue">${Math.round(initialVolume*100)}%</span></div></div></div></div>`;
   const v=$('#vid'),controls=$('#controls'),play=$('#play'),timeline=$('#timeline'),volume=$('#videoVolume'),mute=$('#videoMute');
@@ -183,23 +226,24 @@ async function showVideo(asset,label){
   volume.oninput=e=>{const value=+e.target.value;v.muted=false;v.volume=value;config.videoVolume=value;saveConfig();updateVolumeUI();reveal()};
   mute.onclick=()=>{v.muted=!v.muted;updateVolumeUI();reveal()};
   $('.player-screen').onpointermove=reveal;$('.player-screen').onpointerdown=reveal;
-  $('#back').onclick=()=>{v.pause();changeView(renderMenu)};
+  $('#back').onclick=()=>{v.pause();musicPausedForVideo=false;changeView(renderMenu)};
   updateVolumeUI();reveal();v.play().catch(()=>{});
   currentCleanup=()=>{clearTimeout(timer);v.pause();};
 }
 
 async function showPdf(asset,label='DOCUMENT'){
-  cleanup();music.pause();
+  cleanup();await syncAudio();
   const blob=await resolveBlob(asset);
   if(!blob){alert('PDF not available. Re-import it from Configuration.');return renderMenu()}
-  $('#app').innerHTML=`<div class="pdf-screen" id="pdfScreen"><div class="pdf-stage" id="pdfStage"><div class="pdf-loading">LOADING ${esc(label)}…</div></div><button class="pdf-nav pdf-prev" id="pdfPrev">‹</button><button class="pdf-nav pdf-next" id="pdfNext">›</button><div class="pdf-title">${esc(label)}</div><div class="pdf-counter" id="counter"></div><button class="pdf-back" id="back">← MENU</button></div>`;
+  $('#app').innerHTML=`<div class="pdf-screen" id="pdfScreen"><div class="pdf-stage" id="pdfStage"><div class="pdf-loading">LOADING ${esc(label)}…</div></div><button class="pdf-nav pdf-prev" id="pdfPrev">‹</button><button class="pdf-nav pdf-next" id="pdfNext">›</button><div class="pdf-title">${esc(label)}</div><div class="pdf-counter" id="counter"></div>${musicControlsHtml('doc','document-music-controls')}<button class="pdf-back" id="back">← MENU</button></div>`;
   const stage=$('#pdfStage'),counter=$('#counter'),screen=$('#pdfScreen');
+  bindMusicControls('doc');
   let pdf=null,page=1,closed=false,startX=null,startY=null,currentCanvas=null,renderToken=0,navigating=false;
   const fail=(e)=>{console.error(e);stage.innerHTML=`<div class="viewer-error-inline"><strong>PDF ERROR</strong><small>${navigator.onLine?'The PDF could not be rendered. Try importing it again.':'Connect to internet once so the PDF engine can be cached, then retry offline.'}</small></div>`;$('#pdfPrev').hidden=true;$('#pdfNext').hidden=true;counter.textContent=''};
   try{
     const pdfjs=await getPdfJs();
     const bytes=new Uint8Array(await blob.arrayBuffer());
-    pdf=await pdfjs.getDocument({data:bytes}).promise;
+    pdf=await pdfjs.getDocument({data:bytes,isImageDecoderSupported:false,isOffscreenCanvasSupported:false,enableHWA:false}).promise;
     if(closed)return;
 
     const updateNav=()=>{
@@ -228,8 +272,7 @@ async function showPdf(asset,label='DOCUMENT'){
         nextCanvas.className='pdf-page';
         nextCanvas.width=Math.floor(viewport.width);nextCanvas.height=Math.floor(viewport.height);
         nextCanvas.style.width=Math.floor(viewport.width/dpr)+'px';nextCanvas.style.height=Math.floor(viewport.height/dpr)+'px';
-        const ctx=nextCanvas.getContext('2d',{alpha:false});
-        ctx.fillStyle='#000';ctx.fillRect(0,0,nextCanvas.width,nextCanvas.height);
+        const ctx=nextCanvas.getContext('2d');
         const task=p.render({canvasContext:ctx,viewport});
         await task.promise;
         if(closed||token!==renderToken)return;
@@ -286,7 +329,7 @@ async function removeSlot(kind,id){
 function slotControls(kind,id,index,total){return `<div class="slot-actions"><button class="tiny secondary move-up" ${index===0?'disabled':''}>↑</button><button class="tiny secondary move-down" ${index===total-1?'disabled':''}>↓</button><button class="tiny danger delete-slot">Delete</button></div>`}
 
 async function renderSettings(){
-  cleanup();music.pause();const st=await storageStats();
+  cleanup();await syncAudio();const st=await storageStats();
   const docsHtml=config.documentSlots.map((d,index)=>`<div class="slot-card" data-kind="doc" data-slot="${d.id}"><div class="slot-top"><label class="switch-label"><input class="slot-enabled" type="checkbox" ${d.enabled?'checked':''}> Visible</label><label>Button text<input class="slot-label" value="${esc(d.label)}"></label>${slotControls('doc',d.id,index,config.documentSlots.length)}</div>${assetRow('PDF document',d.document,'pdf',`document-${d.id}`,`doc:${d.id}:document`)}${assetRow('Card image',d.thumbnail,'image',`document-thumb-${d.id}`,`doc:${d.id}:thumbnail`)}</div>`).join('');
   const videosHtml=config.videoSlots.map((v,index)=>`<div class="slot-card" data-kind="video" data-slot="${v.id}"><div class="slot-top"><label class="switch-label"><input class="slot-enabled" type="checkbox" ${v.enabled?'checked':''}> Visible</label><label>Button text<input class="slot-label" value="${esc(v.label)}"></label>${slotControls('video',v.id,index,config.videoSlots.length)}</div>${assetRow('Video',v.video,'video',`video-${v.id}`,`video:${v.id}:video`)}${assetRow('Card image',v.thumbnail,'image',`video-thumb-${v.id}`,`video:${v.id}:thumbnail`)}</div>`).join('');
   $('#app').innerHTML=`<div class="settings-screen"><header class="settings-header"><div><div class="eyebrow">PERPETUA TENEBRAE · PWA</div><h1>Showcase configuration</h1></div><button class="secondary" id="done">Done</button></header><main class="settings-content"><section class="settings-section" id="statusBox"><div class="readiness-head"><div><div class="eyebrow">EVENT STATUS</div><h2>CHECKING…</h2></div><button class="tiny secondary" id="recheck">Recheck</button></div><div class="status-grid" id="statusGrid"></div><div class="device-tools"><button id="installFromSettings">Install app</button><button class="secondary" id="offlineFromSettings">Offline check</button></div></section><section class="settings-section"><h2>Identity & menu</h2><div class="form-grid">${field('Title fallback',config.appTitle,'appTitle')}${field('Subtitle',config.subtitle,'subtitle')}${field('Studio label',config.brandLabel,'brandLabel')}<label>Background darkness <span id="overlayVal">${Math.round(config.overlayStrength*100)}%</span><input id="overlay" type="range" min="0" max="0.85" step="0.01" value="${config.overlayStrength}"></label></div>${assetRow('Menu background (16:9 recommended, ≥1920×1080)',config.background,'image','menu-background','background')}${assetRow('Perpetua Tenebrae logo (PNG/WebP with transparency)',config.logo,'image','menu-logo','logo')}<div class="form-grid logo-controls"><label>Logo size <span id="logoScaleVal">${Math.round(config.logoScale||100)}%</span><input id="logoScale" type="range" min="35" max="180" step="1" value="${config.logoScale||100}"></label><label>Logo horizontal <span id="logoXVal">${Math.round(config.logoX||0)} px</span><input id="logoX" type="range" min="-300" max="300" step="1" value="${config.logoX||0}"></label><label>Logo vertical <span id="logoYVal">${Math.round(config.logoY||0)} px</span><input id="logoY" type="range" min="-180" max="180" step="1" value="${config.logoY||0}"></label></div>${assetRow('Custom font (.ttf/.otf/.woff)',config.customFont,'font','custom-font','customFont')}</section><section class="settings-section"><div class="section-title-row"><div><h2>Documents</h2><p class="settings-note">PDF buttons shown on the top row.</p></div><button id="addDocument">+ Add document</button></div>${docsHtml||'<p class="settings-note">No document buttons yet.</p>'}</section><section class="settings-section"><div class="section-title-row"><div><h2>Videos</h2><p class="settings-note">Video buttons shown in the lower carousel.</p></div><button id="addVideo">+ Add video</button></div>${videosHtml||'<p class="settings-note">No video buttons yet.</p>'}</section><section class="settings-section"><h2>Audio</h2><label class="switch-label"><input id="musicEnabled" type="checkbox" ${config.musicEnabled?'checked':''}> Play menu music in loop</label><div class="form-grid"><label>Music volume <span>${Math.round(config.musicVolume*100)}%</span><input id="musicVolume" type="range" min="0" max="1" step=".01" value="${config.musicVolume}"></label><label>Button sound volume <span>${Math.round(config.uiSoundVolume*100)}%</span><input id="sfxVolume" type="range" min="0" max="1" step=".01" value="${config.uiSoundVolume}"></label></div>${assetRow('Main theme / menu music',config.menuMusic,'audio','menu-music','menuMusic')}${assetRow('Button sound',config.buttonSound,'audio','button-sfx','buttonSound')}</section><section class="settings-section"><h2>Offline storage</h2><div class="storage-card"><div><span>Used by browser</span><strong>${fmt(st.usage)}</strong></div><div><span>Available quota</span><strong>${st.quota?fmt(st.quota):'Browser managed'}</strong></div><div><span>Media storage</span><strong>${st.opfs?'OPFS':'IndexedDB fallback'}</strong></div><div><span>Persistence</span><strong>${st.persisted?'✓ GRANTED':'NOT GRANTED'}</strong></div></div><div class="storage-actions"><button id="persist">Request persistent storage</button></div><p class="settings-note">Imported media stays only on this device. It is not uploaded to the server.</p></section><section class="settings-section note-section"><h2>Event mode</h2><p>Install the PWA on the Home Screen first, then import media from inside the installed app. Once the readiness check is green, enable airplane mode and test again.</p></section></main></div>`;

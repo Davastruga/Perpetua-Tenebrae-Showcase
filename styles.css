@@ -352,3 +352,71 @@ button.secondary { background:#282727; color:#fff; border:1px solid #3d3b39; }
 }
 .screen-fade.is-black { opacity:1; pointer-events:auto; }
 .screen-fade.instant { transition:none!important; }
+
+
+/* v2.7 music controls + carousel edge fades */
+.music-controls {
+  z-index: 5;
+  display: grid;
+  grid-template-columns: 34px 34px 20px minmax(105px, 175px) 36px;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(255,255,255,.17);
+  border-radius: 20px;
+  background: rgba(0,0,0,.48);
+  color: #fff;
+  backdrop-filter: blur(9px);
+}
+.music-action {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgba(255,255,255,.09);
+  color: #fff;
+  font-size: 13px;
+  line-height: 1;
+}
+.music-action.restart { font-size: 18px; }
+.music-controls .volume-icon { font-size: 13px; text-align: center; }
+.music-controls input[type="range"] { width: 100%; accent-color: #d6c19a; }
+.music-controls > span:last-child { font-size: 9px; font-variant-numeric: tabular-nums; text-align: right; opacity: .82; }
+.menu-music-controls {
+  position: absolute;
+  left: max(6vw, env(safe-area-inset-left));
+  bottom: 1.2vh;
+}
+.document-music-controls {
+  position: absolute;
+  left: max(24px, env(safe-area-inset-left));
+  bottom: max(20px, env(safe-area-inset-bottom));
+}
+
+.library-row.fade-right {
+  -webkit-mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 52px), transparent 100%);
+  mask-image: linear-gradient(to right, #000 0, #000 calc(100% - 52px), transparent 100%);
+}
+.library-row.fade-left {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 52px, #000 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 52px, #000 100%);
+}
+.library-row.fade-both {
+  -webkit-mask-image: linear-gradient(to right, transparent 0, #000 52px, #000 calc(100% - 52px), transparent 100%);
+  mask-image: linear-gradient(to right, transparent 0, #000 52px, #000 calc(100% - 52px), transparent 100%);
+}
+.library-row.fade-none {
+  -webkit-mask-image: none;
+  mask-image: none;
+}
+
+@media (max-height: 620px) and (orientation: landscape) {
+  .menu-music-controls { bottom: .55vh; }
+  .document-music-controls { bottom: max(12px, env(safe-area-inset-bottom)); }
+  .music-controls { grid-template-columns: 30px 30px 18px minmax(90px, 145px) 32px; min-height: 34px; gap: 5px; }
+  .music-action { width: 27px; height: 27px; }
+}

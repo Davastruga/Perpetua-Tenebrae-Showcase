@@ -1,18 +1,10 @@
-# ACTUALIZAR A v2.6
+# Perpetua Tenebrae Showcase PWA v2.7.1
 
-1. Descomprime el ZIP.
-2. Sube/reemplaza TODOS los archivos directamente en la raíz del repositorio GitHub Pages.
-3. No crees carpeta `icons`; los tres PNG van en la raíz.
-4. Espera a que GitHub Pages termine de publicar.
-5. Si la tablet sigue mostrando la versión anterior, borra los datos del sitio `davastruga.github.io` en Chrome y vuelve a abrir/instalar la PWA.
-
-## CONFIGURACIÓN
-- DOCUMENTS: usa `+ Add document` para crear Pitch, GDD, Concept Art o cualquier otro PDF.
-- VIDEOS: usa `+ Add video` para añadir tantos vídeos como quieras.
-- Cada botón se puede renombrar, ocultar, mover arriba/abajo o eliminar.
-- Puedes asignar una imagen de tarjeta independiente a cada documento/vídeo.
-- El tamaño del logo afecta ahora al espacio real del menú; el subtítulo se desplaza hacia abajo con él.
-
-
-### v2.6
-Corregido el fondo personalizado del menú: ahora la imagen seleccionada se muestra correctamente.
+1. Sustituye en GitHub los archivos actuales por los de esta carpeta.
+2. Todo va directamente en la raíz del repositorio.
+3. No necesitas volver a configurar GitHub Pages.
+4. La música dispone ahora de pausa/reanudar, reinicio y volumen en el menú.
+5. Al abrir un PDF la música sigue sonando y sus controles permanecen visibles.
+6. Al abrir un vídeo la música se pausa temporalmente y, al volver, continúa desde el mismo punto si estaba reproduciéndose.
+7. Los carruseles muestran un fade en los laterales cuando existe más contenido fuera de pantalla.
+8. Si Chrome conserva una versión anterior, borra los datos de davastruga.github.io y vuelve a abrir/instalar la PWA.
