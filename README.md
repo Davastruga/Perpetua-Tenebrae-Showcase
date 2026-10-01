@@ -1,16 +1,14 @@
-# Perpetua Tenebrae Showcase PWA v2.3
+# Perpetua Tenebrae Showcase PWA v2.4
 
-Versión preparada para GitHub Pages con todos los archivos en la raíz.
+Static installable PWA for event presentations.
 
-Cambios v2.3:
-- Corrige el contenedor principal (#app) para que PITCH / COMBAT / EXPLORATION se vean correctamente.
-- Iconos en la raíz: no hace falta crear carpeta icons.
-- Manifest y Service Worker actualizados para GitHub Pages.
-- `display: fullscreen` y petición de pantalla completa tras la primera interacción.
-- Logo configurable y visor PDF interno.
-- Control de volumen de la música directamente en el menú.
-- Control de volumen independiente dentro de cada vídeo.
-- El volumen de vídeo queda recordado para los siguientes vídeos.
-- La música del menú se pausa siempre antes de reproducir un vídeo y vuelve al regresar al menú.
+Changes in v2.4:
+- Settings opens directly, without password.
+- Install and Offline Check moved into Settings.
+- Cleaner presentation menu.
+- Menu volume control moved lower.
+- PDF page-slide animation.
+- PDF viewer stays black while the next page renders to avoid white flashes.
+- Menu music pauses for videos and resumes when returning to the menu.
 
-Sube todos estos archivos directamente a la raíz del repositorio.
+Upload all files directly to the GitHub Pages repository root.
