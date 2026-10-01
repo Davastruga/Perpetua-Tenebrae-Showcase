@@ -1,8 +1,8 @@
-# Perpetua Tenebrae Showcase PWA v2.5
+# Perpetua Tenebrae Showcase PWA v2.5.1
 
 Showcase offline para eventos, instalable desde Chrome/Safari.
 
-## Novedades v2.5
+## Novedades v2.5.1
 - Logo con escalado real: el subtítulo baja conforme crece el logo.
 - Dos filas compactas en el menú: DOCUMENTS y VIDEOS.
 - Documentos PDF dinámicos: añadir, renombrar, ordenar, ocultar y eliminar botones.
@@ -13,3 +13,7 @@ Showcase offline para eventos, instalable desde Chrome/Safari.
 - Controles de volumen de menú y vídeo.
 
 Todos los archivos de este paquete van directamente en la raíz del repositorio de GitHub Pages.
+
+
+## v2.5.1
+Fix: the selected menu background image now renders above the fallback gradient.

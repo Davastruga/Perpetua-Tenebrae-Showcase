@@ -12,3 +12,7 @@
 - Cada botón se puede renombrar, ocultar, mover arriba/abajo o eliminar.
 - Puedes asignar una imagen de tarjeta independiente a cada documento/vídeo.
 - El tamaño del logo afecta ahora al espacio real del menú; el subtítulo se desplaza hacia abajo con él.
+
+
+### v2.5.1
+Corregido el fondo personalizado del menú: ahora la imagen seleccionada se muestra correctamente.
