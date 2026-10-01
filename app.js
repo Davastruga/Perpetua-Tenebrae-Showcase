@@ -10,7 +10,7 @@ let pdfjsPromise=null;
 
 const DEFAULT_CONFIG={
   appTitle:'PERPETUA TENEBRAE', subtitle:'ONLY DARKNESS IS PERPETUAL', brandLabel:'WHITE CROW ENTERTAINMENT', pitchLabel:'PITCH',
-  musicEnabled:true, musicVolume:.45, uiSoundVolume:.7, overlayStrength:.52, presentationLock:false, logoScale:100, logoX:0, logoY:0,
+  musicEnabled:true, musicVolume:.45, videoVolume:.85, uiSoundVolume:.7, overlayStrength:.52, presentationLock:false, logoScale:100, logoX:0, logoY:0,
   videoSlots:[
     {id:'combat',label:'COMBAT',enabled:true},
     {id:'exploration',label:'EXPLORATION',enabled:true},
@@ -65,8 +65,12 @@ async function syncAudio(){
 async function applyCustomFont(){const old=$('#custom-font-style');old?.remove();const u=await resolveUrl(config.customFont);if(!u)return;const st=document.createElement('style');st.id='custom-font-style';st.textContent=`@font-face{font-family:PTCustom;src:url('${u}')} :root{--showcase-font:PTCustom,Inter,Arial,sans-serif}`;document.head.appendChild(st)}
 
 async function ensureFullscreen(){
-  if(document.fullscreenElement)return;
-  try{await document.documentElement.requestFullscreen?.({navigationUI:'hide'})}catch{}
+  try{
+    if(!document.fullscreenElement){
+      await document.documentElement.requestFullscreen?.({navigationUI:'hide'});
+    }
+    try{await screen.orientation?.lock?.('landscape')}catch{}
+  }catch{}
 }
 async function getPdfJs(){
   if(!pdfjsPromise){
@@ -96,15 +100,41 @@ async function renderMenu(){
   const bg=await resolveUrl(config.background);const logo=await resolveUrl(config.logo);const pitchThumb=await resolveUrl(config.pitchThumbnail);const thumbs={};for(const s of config.videoSlots)thumbs[s.id]=await resolveUrl(s.thumbnail);
   const cards=[`<button class="media-card ${config.pitch?'':'disabled'}" data-kind="pitch" ${config.pitch?'':'disabled'}>${pitchThumb?`<img src="${pitchThumb}" alt="">`:`<div class="card-fallback"><span>▤</span></div>`}<div class="card-shade"></div><div class="card-label">${esc(config.pitchLabel)}</div>${config.pitch?'':'<div class="not-assigned">NOT ASSIGNED</div>'}</button>`]
     .concat(config.videoSlots.filter(s=>s.enabled).map(s=>`<button class="media-card ${s.video?'':'disabled'}" data-slot="${s.id}" ${s.video?'':'disabled'}>${thumbs[s.id]?`<img src="${thumbs[s.id]}" alt="">`:`<div class="card-fallback"><span>▶</span></div>`}<div class="card-shade"></div><div class="card-label">${esc(s.label)}</div>${s.video?'':'<div class="not-assigned">NOT ASSIGNED</div>'}</button>`)).join('');
-  $('#app').innerHTML=`<div class="app-shell" ${bg?`style="background-image:url('${bg}')"`:''}><div class="background-default"></div><div class="background-overlay" style="background:linear-gradient(90deg,rgba(2,2,3,${Math.min(.92,config.overlayStrength+.24)}) 0%,rgba(2,2,3,${config.overlayStrength}) 46%,rgba(2,2,3,${Math.max(.2,config.overlayStrength-.18)}) 100%)"></div>${config.presentationLock?'':'<button class="settings-button" id="settings" aria-label="Settings">⚙</button>'}${isStandalone()?'':'<button class="install-pill" id="install">＋ INSTALL APP</button>'}<div class="hero-copy"><button class="brand-mark ${config.presentationLock?'unlock-target':''}" id="brand">${esc(config.brandLabel)}</button>${logo?`<div class="hero-logo-stage"><img class="hero-logo" src="${logo}" alt="${esc(config.appTitle)}" style="width:${Number(config.logoScale)||100}%;transform:translate(${Number(config.logoX)||0}px,${Number(config.logoY)||0}px)"></div>`:`<h1>${esc(config.appTitle)}</h1>`}<p>${esc(config.subtitle)}</p></div><div class="row-title">SHOWCASE</div><div class="card-row">${cards}</div><button class="ready-pill" id="ready"><span class="dot ${navigator.onLine?'online':'offline'}"></span> OFFLINE CHECK</button><div class="footer-hint">${navigator.onLine?'ONLINE · MEDIA REMAINS LOCAL':'OFFLINE MODE · LOCAL MEDIA'}</div></div>`;
+  $('#app').innerHTML=`<div class="app-shell" ${bg?`style="background-image:url('${bg}')"`:''}><div class="background-default"></div><div class="background-overlay" style="background:linear-gradient(90deg,rgba(2,2,3,${Math.min(.92,config.overlayStrength+.24)}) 0%,rgba(2,2,3,${config.overlayStrength}) 46%,rgba(2,2,3,${Math.max(.2,config.overlayStrength-.18)}) 100%)"></div>${config.presentationLock?'':'<button class="settings-button" id="settings" aria-label="Settings">⚙</button>'}${isStandalone()?'':'<button class="install-pill" id="install">＋ INSTALL APP</button>'}<div class="hero-copy"><button class="brand-mark ${config.presentationLock?'unlock-target':''}" id="brand">${esc(config.brandLabel)}</button>${logo?`<div class="hero-logo-stage"><img class="hero-logo" src="${logo}" alt="${esc(config.appTitle)}" style="width:${Number(config.logoScale)||100}%;transform:translate(${Number(config.logoX)||0}px,${Number(config.logoY)||0}px)"></div>`:`<h1>${esc(config.appTitle)}</h1>`}<p>${esc(config.subtitle)}</p></div><div class="row-title">SHOWCASE</div><div class="card-row">${cards}</div><button class="ready-pill" id="ready"><span class="dot ${navigator.onLine?'online':'offline'}"></span> OFFLINE CHECK</button><div class="menu-volume"><span class="volume-icon">🔊</span><input id="menuVolume" aria-label="Menu music volume" type="range" min="0" max="1" step="0.01" value="${Number(config.musicVolume ?? .45)}"><span id="menuVolumeValue">${Math.round(Number(config.musicVolume ?? .45)*100)}%</span></div><div class="footer-hint">${navigator.onLine?'ONLINE · MEDIA REMAINS LOCAL':'OFFLINE MODE · LOCAL MEDIA'}</div></div>`;
   $('#settings')?.addEventListener('click',()=>{clickSound();showPassword(renderSettings)});$('#install')?.addEventListener('click',doInstall);$('#ready').onclick=()=>{clickSound();showReadiness()};
+  const menuVolume=$('#menuVolume');if(menuVolume){menuVolume.oninput=e=>{config.musicVolume=+e.target.value;music.volume=config.musicVolume;$('#menuVolumeValue').textContent=Math.round(config.musicVolume*100)+'%';saveConfig();if(config.musicEnabled&&music.src&&music.paused)music.play().catch(()=>{})}}
   $('#brand').onpointerdown=()=>{if(!config.presentationLock)return;clearTimeout(holdTimer);holdTimer=setTimeout(()=>{clickSound();showPassword(renderSettings)},3000)};['pointerup','pointercancel','pointerleave'].forEach(ev=>$('#brand').addEventListener(ev,()=>clearTimeout(holdTimer)));
   $('[data-kind="pitch"]')?.addEventListener('click',async()=>{clickSound();if(config.pitch)await showPdf(config.pitch)});
   document.querySelectorAll('[data-slot]').forEach(el=>el.addEventListener('click',async()=>{clickSound();const s=config.videoSlots.find(x=>x.id===el.dataset.slot);if(s?.video)await showVideo(s.video,s.label)}));
   $('.app-shell').addEventListener('pointerdown',()=>{if(config.musicEnabled)music.play().catch(()=>{})},{once:true});
 }
 
-async function showVideo(asset,label){cleanup();music.pause();const src=await resolveUrl(asset);if(!src){alert('Video not available. Re-import it from Configuration.');return renderMenu()}$('#app').innerHTML=`<div class="player-screen"><video id="vid" class="video-element" src="${src}" playsinline autoplay></video><div class="video-controls is-visible" id="controls"><button class="back-pill" id="back">← <span>MENU</span></button><div class="player-title">${esc(label)}</div><button class="play-button" id="play">Ⅱ</button><div class="timeline-wrap"><span id="now">00:00</span><input id="timeline" class="timeline" type="range" min="0" max="0.01" step="0.05" value="0"><span id="dur">00:00</span></div></div></div>`;const v=$('#vid'),controls=$('#controls'),play=$('#play'),timeline=$('#timeline');let timer;const ft=n=>{if(!Number.isFinite(n))return'00:00';n=Math.max(0,Math.floor(n));return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')};const reveal=()=>{controls.classList.add('is-visible');clearTimeout(timer);timer=setTimeout(()=>controls.classList.remove('is-visible'),3000)};const toggle=()=>{if(v.paused)v.play().catch(()=>{});else v.pause();reveal()};v.onclick=toggle;play.onclick=toggle;v.onplay=()=>play.textContent='Ⅱ';v.onpause=()=>play.textContent='▶';v.ontimeupdate=()=>{$('#now').textContent=ft(v.currentTime);timeline.value=v.currentTime};v.ondurationchange=()=>{timeline.max=Math.max(v.duration||0,.01);$('#dur').textContent=ft(v.duration)};timeline.oninput=()=>{v.currentTime=+timeline.value;reveal()};$('.player-screen').onpointermove=reveal;$('.player-screen').onpointerdown=reveal;$('#back').onclick=()=>renderMenu();reveal();v.play().catch(()=>{});currentCleanup=()=>{clearTimeout(timer);v.pause()}}
+async function showVideo(asset,label){
+  cleanup();
+  music.pause();
+  const src=await resolveUrl(asset);
+  if(!src){alert('Video not available. Re-import it from Configuration.');return renderMenu()}
+  const initialVolume=Math.max(0,Math.min(1,Number(config.videoVolume ?? .85)));
+  $('#app').innerHTML=`<div class="player-screen"><video id="vid" class="video-element" src="${src}" playsinline autoplay></video><div class="video-controls is-visible" id="controls"><button class="back-pill" id="back">← <span>MENU</span></button><div class="player-title">${esc(label)}</div><button class="play-button" id="play">Ⅱ</button><div class="video-bottom-controls"><div class="timeline-wrap"><span id="now">00:00</span><input id="timeline" class="timeline" type="range" min="0" max="0.01" step="0.05" value="0"><span id="dur">00:00</span></div><div class="video-volume-wrap"><button class="video-mute" id="videoMute" aria-label="Mute video">🔊</button><input id="videoVolume" class="video-volume" aria-label="Video volume" type="range" min="0" max="1" step="0.01" value="${initialVolume}"><span id="videoVolumeValue">${Math.round(initialVolume*100)}%</span></div></div></div></div>`;
+  const v=$('#vid'),controls=$('#controls'),play=$('#play'),timeline=$('#timeline'),volume=$('#videoVolume'),mute=$('#videoMute');
+  v.volume=initialVolume;
+  let timer;
+  const ft=n=>{if(!Number.isFinite(n))return'00:00';n=Math.max(0,Math.floor(n));return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0')};
+  const reveal=()=>{controls.classList.add('is-visible');clearTimeout(timer);timer=setTimeout(()=>controls.classList.remove('is-visible'),3000)};
+  const toggle=()=>{if(v.paused)v.play().catch(()=>{});else v.pause();reveal()};
+  const updateVolumeUI=()=>{const level=v.muted?0:v.volume;volume.value=String(level);$('#videoVolumeValue').textContent=Math.round(level*100)+'%';mute.textContent=(v.muted||level===0)?'🔇':level<.5?'🔉':'🔊'};
+  v.onclick=toggle;play.onclick=toggle;
+  v.onplay=()=>play.textContent='Ⅱ';v.onpause=()=>play.textContent='▶';
+  v.ontimeupdate=()=>{$('#now').textContent=ft(v.currentTime);timeline.value=String(v.currentTime)};
+  v.ondurationchange=()=>{timeline.max=String(Math.max(v.duration||0,.01));$('#dur').textContent=ft(v.duration)};
+  timeline.oninput=()=>{v.currentTime=+timeline.value;reveal()};
+  volume.oninput=e=>{const value=+e.target.value;v.muted=false;v.volume=value;config.videoVolume=value;saveConfig();updateVolumeUI();reveal()};
+  mute.onclick=()=>{v.muted=!v.muted;updateVolumeUI();reveal()};
+  $('.player-screen').onpointermove=reveal;$('.player-screen').onpointerdown=reveal;
+  $('#back').onclick=()=>{v.pause();renderMenu()};
+  updateVolumeUI();reveal();v.play().catch(()=>{});
+  currentCleanup=()=>{clearTimeout(timer);v.pause();};
+}
 
 async function showPdf(asset){
   cleanup();music.pause();
@@ -165,6 +195,6 @@ async function showReadiness(){const required=[['Pitch',config.pitch],...config.
 window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();installPrompt=e;renderMenu()});window.addEventListener('appinstalled',()=>{installPrompt=null;renderMenu()});window.addEventListener('online',()=>renderMenu());window.addEventListener('offline',()=>renderMenu());
 if('serviceWorker'in navigator)navigator.serviceWorker.register('./sw.js').catch(console.warn);
 if('wakeLock'in navigator){const keep=()=>navigator.wakeLock.request('screen').catch(()=>{});keep();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')keep()})}
-document.addEventListener('pointerdown',()=>{if(isStandalone()&&!document.fullscreenElement)ensureFullscreen()},{capture:true});
+document.addEventListener('pointerdown',()=>{if(!document.fullscreenElement)ensureFullscreen()},{capture:true});
 preloadPdfEngine();
 renderMenu();
